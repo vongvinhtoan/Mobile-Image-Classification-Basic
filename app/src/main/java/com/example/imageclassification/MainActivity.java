@@ -21,6 +21,7 @@ import android.widget.TextView;
 import android.Manifest;
 
 import com.example.imageclassification.ml.Facenet;
+import com.example.imageclassification.ml.Facenet512;
 import com.example.imageclassification.ml.Model;
 import com.example.imageclassification.ml.Model1;
 
@@ -40,7 +41,8 @@ public class MainActivity extends AppCompatActivity {
     ImageView imageView;
     Button picture;
     int imageSize = 160;
-    float[] nghiem, phuc;
+    String[] classes = {"Nghiem", "Phuc", "Toan", "Mai"};
+    float[][] base_feat = new float[classes.length][];
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,8 +68,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        nghiem = initFeatureVector(R.drawable.nghiem_image);
-        phuc = initFeatureVector(R.drawable.phuc_image);
+        base_feat[0] = initFeatureVector(R.drawable.nghiem_image);
+        base_feat[1] = initFeatureVector(R.drawable.phuc_image);
+        base_feat[2] = initFeatureVector(R.drawable.toan_image);
+        base_feat[3] = initFeatureVector(R.drawable.mai_image);
     }
 
     private float[] initFeatureVector(int imageId) {
@@ -78,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             float[] res;
-            Facenet model = Facenet.newInstance(getApplicationContext());
+            Facenet512 model = Facenet512.newInstance(getApplicationContext());
 
             // Creates inputs for reference.
             TensorBuffer inputFeature0 = TensorBuffer.createFixedSize(new int[]{1, 160, 160, 3}, DataType.FLOAT32);
@@ -103,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
             inputFeature0.loadBuffer(byteBuffer);
 
             // Runs model inference and gets result.
-            Facenet.Outputs outputs = model.process(inputFeature0);
+            Facenet512.Outputs outputs = model.process(inputFeature0);
             TensorBuffer outputFeature0 = outputs.getOutputFeature0AsTensorBuffer();
 
             res = outputFeature0.getFloatArray();
@@ -120,7 +124,13 @@ public class MainActivity extends AppCompatActivity {
 
     private float L2Dist(float[] a, float[] b) {
         float res = 0;
-        for (int i=0; i<a.length; i++) res += Math.pow(a[i] - b[i], 2);
+        float a_nor = 0;
+        for(int i =0; i <a.length;i++) a_nor += a[i]*a[i];
+        a_nor = (float)Math.pow(a_nor, 0.5);
+        float b_nor = 0;
+        for(int i =0; i <b.length;i++) b_nor += b[i]*b[i];
+        b_nor = (float)Math.pow(b_nor, 0.5);
+        for (int i=0; i<a.length; i++) res += Math.pow(a[i]/a_nor - b[i]/b_nor, 2);
         res = (float) Math.pow(res, 0.5);
         return res;
     }
@@ -134,11 +144,75 @@ public class MainActivity extends AppCompatActivity {
             imageView.setImageBitmap(image);
 
             image = Bitmap.createScaledBitmap(image, imageSize, imageSize, false);
-            classifyImage2(image);
+            classifyImage3(image);
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
 
+    private void classifyImage3(Bitmap image) {
+        try {
+            Facenet512 model = Facenet512.newInstance(getApplicationContext());
+
+            // Creates inputs for reference.
+            TensorBuffer inputFeature0 = TensorBuffer.createFixedSize(new int[]{1, 160, 160, 3}, DataType.FLOAT32);
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3);
+            byteBuffer.order(ByteOrder.nativeOrder());
+
+            // get 1D array of 224 * 224 pixels in image
+            int [] intValues = new int[imageSize * imageSize];
+            image.getPixels(intValues, 0, image.getWidth(), 0, 0, image.getWidth(), image.getHeight());
+
+            // iterate over pixels and extract R, G, and B values. Add to bytebuffer.
+            int pixel = 0;
+            for(int i = 0; i < imageSize; i++){
+                for(int j = 0; j < imageSize; j++){
+                    int val = intValues[pixel++]; // RGB
+                    byteBuffer.putFloat(((val >> 16) & 0xFF) * (1.f / 255.f));
+                    byteBuffer.putFloat(((val >> 8) & 0xFF) * (1.f / 255.f));
+                    byteBuffer.putFloat((val & 0xFF) * (1.f / 255.f));
+                }
+            }
+
+            inputFeature0.loadBuffer(byteBuffer);
+
+            // Runs model inference and gets result.
+            Facenet512.Outputs outputs = model.process(inputFeature0);
+            TensorBuffer outputFeature0 = outputs.getOutputFeature0AsTensorBuffer();
+
+            float[] feature = outputFeature0.getFloatArray();
+
+            for(int i=0; i<feature.length; i++) {
+                Log.i(TAG, "classifyImage2: " + String.valueOf(i) + ": " + String.valueOf(feature[i]));
+            }
+
+            float[] dist = new float[classes.length];
+            for(int i=0; i<classes.length; i++) dist[i] = L2Dist(feature, base_feat[i]);
+
+            int minPos = 0;
+            float minVal = dist[0];
+            for(int i=0; i<dist.length; i++) {
+                if(dist[i] < minVal) {
+                    minPos = i;
+                    minVal = dist[i];
+                }
+            }
+
+            result.setText(classes[minPos]);
+
+            String s = "";
+            for(int i=0; i<dist.length; i++) {
+                s += String.format("%s: %.5f\n", classes[i], dist[i]);
+            }
+            confidence.setText(s);
+
+            Log.i(TAG, "classifyImage2: Shortest distant: " + classes[minPos]);
+
+            // Releases model resources if no longer used.
+            model.close();
+        } catch (IOException e) {
+            // TODO Handle the exception
+        }
+    }
     private void classifyImage2(Bitmap image) {
         try {
             Facenet model = Facenet.newInstance(getApplicationContext());
@@ -175,11 +249,8 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(TAG, "classifyImage2: " + String.valueOf(i) + ": " + String.valueOf(feature[i]));
             }
 
-            float[] dist = new float[2];
-            String[] classes = {"Nghiem", "Phuc"};
-
-            dist[0] = L2Dist(feature, nghiem);
-            dist[1] = L2Dist(feature, phuc);
+            float[] dist = new float[classes.length];
+            for(int i=0; i<classes.length; i++) dist[i] = L2Dist(feature, base_feat[i]);
 
             int minPos = 0;
             float minVal = dist[0];
