@@ -4,6 +4,7 @@ import static android.content.ContentValues.TAG;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 
 import android.content.Context;
 import android.content.Intent;
@@ -16,6 +17,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.Manifest;
@@ -33,26 +35,36 @@ import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
+    public static final int REQUEST_CAMERA_FEATURE = 1;
+    public static final int REQUEST_CLASSIFICATION = 2;
+    public static final int REQUEST_UPDATE_DATA = 3;
 
     TextView result, confidence;
     ImageView imageView;
     Button picture;
+    EditText nameInput;
     int imageSize = 160;
     String[] classes = {"Nghiem", "Phuc", "Toan", "Mai"};
     float[][] base_feat = new float[classes.length][];
+    HashMap<String, float[]> featureVectorMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         setContentView(R.layout.activity_main);
 
         result = findViewById(R.id.result);
         confidence = findViewById(R.id.confidence);
         imageView = findViewById(R.id.imageView);
         picture = findViewById(R.id.button);
+        Button updBtn = findViewById(R.id.add_data_btn);
+        nameInput = findViewById(R.id.name_input);
 
         picture.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -60,10 +72,24 @@ public class MainActivity extends AppCompatActivity {
                 // Launch camera if we have permission
                 if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                     Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                    startActivityForResult(cameraIntent, 1);
+                    startActivityForResult(cameraIntent, REQUEST_CLASSIFICATION);
                 } else {
                     //Request camera permission if we don't have it.
-                    requestPermissions(new String[]{Manifest.permission.CAMERA}, 100);
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_FEATURE);
+                }
+            }
+        });
+
+        updBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // Launch camera if we have permission
+                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    startActivityForResult(cameraIntent, REQUEST_UPDATE_DATA);
+                } else {
+                    //Request camera permission if we don't have it.
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_FEATURE);
                 }
             }
         });
@@ -72,10 +98,27 @@ public class MainActivity extends AppCompatActivity {
         base_feat[1] = initFeatureVector(R.drawable.phuc_image);
         base_feat[2] = initFeatureVector(R.drawable.toan_image);
         base_feat[3] = initFeatureVector(R.drawable.mai_image);
+
+        initImageData();
     }
 
-    private float[] initFeatureVector(int imageId) {
-        Bitmap image = BitmapFactory.decodeResource(getResources(), imageId);
+    private void initImageData() {
+        Log.d("initImageData", "Started");
+        ImageStorage.ImageHashMap imageMap = ImageStorage.getImagesMap(this);
+//        ImageStorage.ImageHashMap imageMap = new ImageStorage.ImageHashMap();
+        imageMap.put("Nghiem", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.nghiem_image)));
+        imageMap.put("Phuc", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.phuc_image)));
+        imageMap.put("Toan", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.toan_image)));
+        imageMap.put("Mai", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.mai_image)));
+        featureVectorMap = new HashMap<>();
+        for (String name : imageMap.keySet()) {
+            featureVectorMap.put(name, initFeatureVector(ImageManager.Base64ToBitmap(Objects.requireNonNull(imageMap.get(name)))));
+        }
+        ImageStorage.saveImageMap(this, imageMap);
+        Log.d("initImageData", "Done");
+    }
+
+    private float[] initFeatureVector(Bitmap image) {
         int dimension = Math.min(image.getWidth(), image.getHeight());
         image = ThumbnailUtils.extractThumbnail(image, dimension, dimension);
         image = Bitmap.createScaledBitmap(image, imageSize, imageSize, false);
@@ -121,6 +164,9 @@ public class MainActivity extends AppCompatActivity {
         }
         return null;
     }
+    private float[] initFeatureVector(int imageId) {
+        return initFeatureVector(BitmapFactory.decodeResource(getResources(), imageId));
+    }
 
     private float L2Dist(float[] a, float[] b) {
         float res = 0;
@@ -137,16 +183,35 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        if(requestCode == 1 && resultCode == RESULT_OK) {
-            Bitmap image = (Bitmap) data.getExtras().get("data");
+        if (resultCode == RESULT_OK) {
+            assert data != null;
+            Bitmap image = (Bitmap) Objects.requireNonNull(data.getExtras()).get("data");
+            assert image != null;
             int dimension = Math.min(image.getWidth(), image.getHeight());
             image = ThumbnailUtils.extractThumbnail(image, dimension, dimension);
             imageView.setImageBitmap(image);
 
             image = Bitmap.createScaledBitmap(image, imageSize, imageSize, false);
-            classifyImage3(image);
+            if(requestCode == REQUEST_CLASSIFICATION) {
+                classifyImage3(image);
+            } else if (requestCode == REQUEST_UPDATE_DATA) {
+                updateImageData(nameInput.getText().toString(), image);
+            }
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void updateImageData(String name, Bitmap bitmap) {
+        featureVectorMap.put(name, initFeatureVector(bitmap));
+        ImageStorage.putImage(this, name, bitmap);
+    }
+
+    private HashMap<String, Float> generateResult(float[] feature) {
+        HashMap<String, Float> res = new HashMap<>();
+        for (String name : featureVectorMap.keySet()) {
+            res.put(name, L2Dist(Objects.requireNonNull(featureVectorMap.get(name)), feature));
+        }
+        return res;
     }
 
     private void classifyImage3(Bitmap image) {
@@ -185,27 +250,27 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(TAG, "classifyImage2: " + String.valueOf(i) + ": " + String.valueOf(feature[i]));
             }
 
-            float[] dist = new float[classes.length];
-            for(int i=0; i<classes.length; i++) dist[i] = L2Dist(feature, base_feat[i]);
+//            float[] dist = new float[classes.length];
+//            for(int i=0; i<classes.length; i++) dist[i] = L2Dist(feature, base_feat[i]);
 
-            int minPos = 0;
-            float minVal = dist[0];
-            for(int i=0; i<dist.length; i++) {
-                if(dist[i] < minVal) {
-                    minPos = i;
-                    minVal = dist[i];
+            HashMap<String, Float> genRes = generateResult(feature);
+
+            String resName = null;
+            for (String name : genRes.keySet()) {
+                if (resName == null || genRes.get(resName) > genRes.get(name)) {
+                    resName = name;
                 }
             }
 
-            result.setText(classes[minPos]);
+            result.setText(resName);
 
             String s = "";
-            for(int i=0; i<dist.length; i++) {
-                s += String.format("%s: %.5f\n", classes[i], dist[i]);
+            for (String name : genRes.keySet()) {
+                s += String.format("%s: %.5f\n", name, genRes.get(name));
             }
             confidence.setText(s);
 
-            Log.i(TAG, "classifyImage2: Shortest distant: " + classes[minPos]);
+            Log.i(TAG, "classifyImage2: Shortest distant: " + resName);
 
             // Releases model resources if no longer used.
             model.close();
@@ -245,31 +310,29 @@ public class MainActivity extends AppCompatActivity {
 
             float[] feature = outputFeature0.getFloatArray();
 
+
             for(int i=0; i<feature.length; i++) {
                 Log.i(TAG, "classifyImage2: " + String.valueOf(i) + ": " + String.valueOf(feature[i]));
             }
 
-            float[] dist = new float[classes.length];
-            for(int i=0; i<classes.length; i++) dist[i] = L2Dist(feature, base_feat[i]);
+            HashMap<String, Float> genRes = generateResult(feature);
 
-            int minPos = 0;
-            float minVal = dist[0];
-            for(int i=0; i<dist.length; i++) {
-                if(dist[i] < minVal) {
-                    minPos = i;
-                    minVal = dist[i];
+            String resName = null;
+            for (String name : genRes.keySet()) {
+                if(resName == null || genRes.get(resName) > genRes.get(name)) {
+                    resName = name;
                 }
             }
 
-            result.setText(classes[minPos]);
+            result.setText(resName);
 
             String s = "";
-            for(int i=0; i<dist.length; i++) {
-                s += String.format("%s: %.5f\n", classes[i], dist[i]);
+            for (String name : genRes.keySet()) {
+                s += String.format("%s: %.5f\n", name, genRes.get(name));
             }
             confidence.setText(s);
 
-            Log.i(TAG, "classifyImage2: Shortest distant: " + classes[minPos]);
+            Log.i(TAG, "classifyImage2: Shortest distant: " + resName);
 
             // Releases model resources if no longer used.
             model.close();
