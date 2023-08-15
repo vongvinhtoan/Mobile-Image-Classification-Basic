@@ -99,21 +99,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initImageData() {
-        if (ImageStorage.isPreloaded()) {
-            return;
+        imageMap = ImageStorage.getImagesMap();
+        if (!ImageStorage.isPreloaded()) {
+            imageMap.put("Nghiem", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.nghiem_image)));
+            imageMap.put("Phuc", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.phuc_image)));
+            imageMap.put("Toan", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.toan_image)));
+            imageMap.put("Mai", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.mai_image)));
+            ImageStorage.setPreloadFlag();
         }
         Log.d("initImageData", "Started");
-        imageMap = ImageStorage.getImagesMap();
-//        imageMap = new ImageStorage.ImageHashMap();
-        imageMap.put("Nghiem", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.nghiem_image)));
-        imageMap.put("Phuc", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.phuc_image)));
-        imageMap.put("Toan", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.toan_image)));
-        imageMap.put("Mai", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.mai_image)));
         featureVectorMap = new HashMap<>();
         for (String name : imageMap.keySet()) {
             featureVectorMap.put(name, initFeatureVector(ImageManager.Base64ToBitmap(Objects.requireNonNull(imageMap.get(name)))));
         }
-        ImageStorage.setPreloadFlag();
         Log.d("initImageData", "Done");
     }
 
@@ -432,8 +430,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    protected void onStop() {
         ImageStorage.saveImageMap(imageMap);
-        super.onDestroy();
+        super.onStop();
     }
 }
