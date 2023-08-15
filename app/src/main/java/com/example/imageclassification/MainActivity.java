@@ -3,10 +3,12 @@ package com.example.imageclassification;
 import static android.content.ContentValues.TAG;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -21,6 +23,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.Manifest;
+import android.widget.Toast;
 
 import com.example.imageclassification.ml.Facenet;
 import com.example.imageclassification.ml.Facenet512;
@@ -199,8 +202,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateImageData(String name, Bitmap bitmap) {
-        featureVectorMap.put(name, initFeatureVector(bitmap));
-        imageMap.put(name, ImageManager.BitmapToBase64(bitmap));
+        float[] feature = initFeatureVector(bitmap);
+        HashMap<String, Float> genRes = generateResult(feature);
+        String resName = null;
+        for (String dataName : genRes.keySet()) {
+            if (resName == null || genRes.get(resName) > genRes.get(dataName)) {
+                resName = dataName;
+            }
+        }
+        if (genRes.get(resName) < 1) {
+            new AlertDialog.Builder(this)
+                .setTitle("Title")
+                .setMessage("Found duplicated, do you want to add?")
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                        featureVectorMap.put(name, initFeatureVector(bitmap));
+                        imageMap.put(name, ImageManager.BitmapToBase64(bitmap));
+                        Toast.makeText(MainActivity.this, "Yaay", Toast.LENGTH_SHORT).show();
+                    }})
+                .setNegativeButton(android.R.string.no, null).show();
+        }
     }
 
     private HashMap<String, Float> generateResult(float[] feature) {
