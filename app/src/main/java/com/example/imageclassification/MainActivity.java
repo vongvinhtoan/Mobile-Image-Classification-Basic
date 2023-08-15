@@ -17,6 +17,8 @@ import android.media.ThumbnailUtils;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.util.Pair;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -38,6 +40,7 @@ import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -107,7 +110,6 @@ public class MainActivity extends AppCompatActivity {
             imageMap.put("Nghiem", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.nghiem_image)));
             imageMap.put("Phuc", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.phuc_image)));
             imageMap.put("Toan", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.toan_image)));
-            imageMap.put("Mai", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.mai_image)));
             ImageStorage.setPreloadFlag();
         }
         Log.d("initImageData", "Started");
@@ -215,10 +217,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if (isSameName) {
+            View view = LayoutInflater.from(this).inflate(R.layout.layout_alert_dialog, null);
+            ImageView personImage = view.findViewById(R.id.person_image);
+            ImageView yourImage = view.findViewById(R.id.your_image);
+            TextView alertMessage = view.findViewById(R.id.alert_message);
+            personImage.setImageBitmap(ImageManager.Base64ToBitmap(imageMap.get(name)));
+            yourImage.setImageBitmap(bitmap);
+            alertMessage.setText("The person in the database has the same name of the one you entered.\nDo you want to update this person?");
             new AlertDialog.Builder(this)
-                .setTitle("Name duplicated!")
-                .setMessage("Do you want to update?")
+                .setTitle("The name \"" + name + "\" is already in the database!")
                 .setIcon(android.R.drawable.ic_dialog_alert)
+                .setView(view)
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int whichButton) {
                         featureVectorMap.put(name, initFeatureVector(bitmap));
@@ -227,10 +236,17 @@ public class MainActivity extends AppCompatActivity {
                     }})
                 .setNegativeButton(android.R.string.no, null).show();
         } else if (genRes.get(resName) < 1) {
+            View view = LayoutInflater.from(this).inflate(R.layout.layout_alert_dialog, null);
+            ImageView personImage = view.findViewById(R.id.person_image);
+            ImageView yourImage = view.findViewById(R.id.your_image);
+            TextView alertMessage = view.findViewById(R.id.alert_message);
+            personImage.setImageBitmap(ImageManager.Base64ToBitmap(imageMap.get(resName)));
+            yourImage.setImageBitmap(bitmap);
+            alertMessage.setText("The person in the database is \"" + resName + "\".\nIs this person the one you have entered? Do you still want to add?");
             new AlertDialog.Builder(this)
                 .setTitle("Not a strange person!")
-                .setMessage("Is this person already in the data? Do you still want to add?")
                 .setIcon(android.R.drawable.ic_dialog_alert)
+                .setView(view)
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int whichButton) {
                         featureVectorMap.put(name, initFeatureVector(bitmap));
