@@ -14,28 +14,36 @@ public class ImageStorage {
     private static final String KEY_PREFIX = "image_classification.image_storage.";
     private static final String IMAGES_FILE = KEY_PREFIX + "images_file";
     private static final String IMAGES_TABLE = KEY_PREFIX + "images_table";
+    private static final String PRELOAD_FLAG = KEY_PREFIX + "preload_flag";
+    public static SharedPreferences mPreferences;
+    public static SharedPreferences.Editor mPreferencesEditor;
+    private static Gson gson;
 
-    private static SharedPreferences getImagePreferences(Context context) {
-        return context.getSharedPreferences(IMAGES_FILE, Context.MODE_PRIVATE);
+    public static void initialize(Context context) {
+        mPreferences = context.getSharedPreferences(IMAGES_FILE, Context.MODE_PRIVATE);
+        mPreferencesEditor = mPreferences.edit();
+        gson = new Gson();
     }
 
-    public static ImageHashMap getImagesMap(Context context) {
-        SharedPreferences mPreferences = getImagePreferences(context);
-        Gson gson = new Gson();
+    public static ImageHashMap getImagesMap() {
         return gson.fromJson(mPreferences.getString(IMAGES_TABLE, gson.toJson(new ImageHashMap())), ImageHashMap.class);
     }
 
-    public static void saveImageMap(Context context, ImageHashMap map) {
-        Log.d("saveImageMap", String.valueOf(map.get("Toan").length()));
-        SharedPreferences mPreferences = getImagePreferences(context);
-        SharedPreferences.Editor mPreferencesEditor = mPreferences.edit();
-        Gson gson = new Gson();
+    public static void saveImageMap(ImageHashMap map) {
         mPreferencesEditor.putString(IMAGES_TABLE, gson.toJson(map));
         mPreferencesEditor.apply();
     }
-    public static void putImage(Context context, String name, Bitmap bitmap) {
-        ImageHashMap map = getImagesMap(context);
+    public static void putImage(String name, Bitmap bitmap) {
+        ImageHashMap map = getImagesMap();
         map.put(name, ImageManager.BitmapToBase64(bitmap));
-        saveImageMap(context, map);
+        saveImageMap(map);
+    }
+
+    public static void setPreloadFlag() {
+        mPreferencesEditor.putBoolean(PRELOAD_FLAG, true);
+    }
+
+    public static boolean isPreloaded() {
+        return mPreferences.getBoolean(PRELOAD_FLAG, false);
     }
 }

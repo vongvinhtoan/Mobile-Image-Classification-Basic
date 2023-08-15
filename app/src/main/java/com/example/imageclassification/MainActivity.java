@@ -49,8 +49,8 @@ public class MainActivity extends AppCompatActivity {
     Button picture;
     EditText nameInput;
     int imageSize = 160;
-    String[] classes = {"Nghiem", "Phuc", "Toan", "Mai"};
-    float[][] base_feat = new float[classes.length][];
+
+    ImageStorage.ImageHashMap imageMap;
     HashMap<String, float[]> featureVectorMap;
 
     @Override
@@ -94,18 +94,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        base_feat[0] = initFeatureVector(R.drawable.nghiem_image);
-        base_feat[1] = initFeatureVector(R.drawable.phuc_image);
-        base_feat[2] = initFeatureVector(R.drawable.toan_image);
-        base_feat[3] = initFeatureVector(R.drawable.mai_image);
-
+        ImageStorage.initialize(this);
         initImageData();
     }
 
     private void initImageData() {
+        if (ImageStorage.isPreloaded()) {
+            return;
+        }
         Log.d("initImageData", "Started");
-        ImageStorage.ImageHashMap imageMap = ImageStorage.getImagesMap(this);
-//        ImageStorage.ImageHashMap imageMap = new ImageStorage.ImageHashMap();
+        imageMap = ImageStorage.getImagesMap();
+//        imageMap = new ImageStorage.ImageHashMap();
         imageMap.put("Nghiem", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.nghiem_image)));
         imageMap.put("Phuc", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.phuc_image)));
         imageMap.put("Toan", ImageManager.BitmapToBase64(BitmapFactory.decodeResource(getResources(), R.drawable.toan_image)));
@@ -114,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
         for (String name : imageMap.keySet()) {
             featureVectorMap.put(name, initFeatureVector(ImageManager.Base64ToBitmap(Objects.requireNonNull(imageMap.get(name)))));
         }
-        ImageStorage.saveImageMap(this, imageMap);
+        ImageStorage.setPreloadFlag();
         Log.d("initImageData", "Done");
     }
 
@@ -203,7 +202,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateImageData(String name, Bitmap bitmap) {
         featureVectorMap.put(name, initFeatureVector(bitmap));
-        ImageStorage.putImage(this, name, bitmap);
+        imageMap.put(name, ImageManager.BitmapToBase64(bitmap));
     }
 
     private HashMap<String, Float> generateResult(float[] feature) {
@@ -249,9 +248,6 @@ public class MainActivity extends AppCompatActivity {
             for(int i=0; i<feature.length; i++) {
                 Log.i(TAG, "classifyImage2: " + String.valueOf(i) + ": " + String.valueOf(feature[i]));
             }
-
-//            float[] dist = new float[classes.length];
-//            for(int i=0; i<classes.length; i++) dist[i] = L2Dist(feature, base_feat[i]);
 
             HashMap<String, Float> genRes = generateResult(feature);
 
@@ -433,5 +429,11 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e) {
             // TODO Handle the exception
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        ImageStorage.saveImageMap(imageMap);
+        super.onDestroy();
     }
 }
