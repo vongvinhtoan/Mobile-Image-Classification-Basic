@@ -205,23 +205,42 @@ public class MainActivity extends AppCompatActivity {
         float[] feature = initFeatureVector(bitmap);
         HashMap<String, Float> genRes = generateResult(feature);
         String resName = null;
+        boolean isSameName = false;
         for (String dataName : genRes.keySet()) {
+            if (dataName.equals(name)) {
+                isSameName = true;
+            }
             if (resName == null || genRes.get(resName) > genRes.get(dataName)) {
                 resName = dataName;
             }
         }
-        if (genRes.get(resName) < 1) {
+        if (isSameName) {
             new AlertDialog.Builder(this)
-                .setTitle("Title")
-                .setMessage("Found duplicated, do you want to add?")
+                .setTitle("Name duplicated!")
+                .setMessage("Do you want to update?")
                 .setIcon(android.R.drawable.ic_dialog_alert)
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int whichButton) {
                         featureVectorMap.put(name, initFeatureVector(bitmap));
                         imageMap.put(name, ImageManager.BitmapToBase64(bitmap));
-                        Toast.makeText(MainActivity.this, "Yaay", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Added", Toast.LENGTH_SHORT).show();
                     }})
                 .setNegativeButton(android.R.string.no, null).show();
+        } else if (genRes.get(resName) < 1) {
+            new AlertDialog.Builder(this)
+                .setTitle("Not a strange person!")
+                .setMessage("Is this person already in the data? Do you still want to add?")
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                        featureVectorMap.put(name, initFeatureVector(bitmap));
+                        imageMap.put(name, ImageManager.BitmapToBase64(bitmap));
+                        Toast.makeText(MainActivity.this, "Added", Toast.LENGTH_SHORT).show();
+                    }})
+                .setNegativeButton(android.R.string.no, null).show();
+        } else {
+            featureVectorMap.put(name, initFeatureVector(bitmap));
+            imageMap.put(name, ImageManager.BitmapToBase64(bitmap));
         }
     }
 
